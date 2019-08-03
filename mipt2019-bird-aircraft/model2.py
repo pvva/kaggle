@@ -42,7 +42,9 @@ class ConvNet(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=1),
         ).cuda()
         self.layer2 = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0), nn.ReLU()
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(),
+            #
         ).cuda()
         self.layer3 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
