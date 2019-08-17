@@ -90,7 +90,7 @@ class ConvNet(nn.Module):
             # nn.Conv2d(
             #     in_channels=256, out_channels=256, kernel_size=2, stride=2, padding=0
             # ),
-            nn.ReLU(),
+            # nn.ReLU(),
         ).cuda()
         self.zoomout = nn.Sequential(
             nn.Conv2d(
