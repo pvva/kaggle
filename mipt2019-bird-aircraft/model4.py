@@ -8,7 +8,7 @@ from PIL import Image
 
 
 # Competition: https://www.kaggle.com/c/mipt2019-bird-aircraft
-# This model gives score of 0.91
+# This model gives score of 0.93
 
 
 def convert_strings_to_categories_codes(df):
@@ -55,19 +55,19 @@ class DeepCNet(nn.Module):
 
         modules = [
             nn.Conv2d(
-                in_channels=3, out_channels=200, kernel_size=3, stride=1, padding=0
+                in_channels=3, out_channels=400, kernel_size=3, stride=1, padding=0
             ),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),
             nn.Conv2d(
-                in_channels=200, out_channels=300, kernel_size=1, stride=1, padding=0
+                in_channels=400, out_channels=500, kernel_size=1, stride=1, padding=0
             ),
         ]
         for i in range(4):
             modules.append(
                 nn.Conv2d(
-                    in_channels=300 + i * 100,
-                    out_channels=400 + i * 100,
+                    in_channels=500 + i * 100,
+                    out_channels=600 + i * 100,
                     kernel_size=2,
                     stride=1,
                     padding=1,
@@ -78,8 +78,8 @@ class DeepCNet(nn.Module):
             modules.append(nn.MaxPool2d(kernel_size=2))
             modules.append(
                 nn.Conv2d(
-                    in_channels=400 + i * 100,
-                    out_channels=400 + i * 100,
+                    in_channels=600 + i * 100,
+                    out_channels=600 + i * 100,
                     kernel_size=1,
                     stride=1,
                     padding=0,
@@ -89,7 +89,7 @@ class DeepCNet(nn.Module):
         modules.append(nn.Dropout(p=0.5))
         modules.append(
             nn.Conv2d(
-                in_channels=700, out_channels=2, kernel_size=1, stride=1, padding=0
+                in_channels=900, out_channels=2, kernel_size=1, stride=1, padding=0
             )
         )
 
@@ -108,7 +108,7 @@ class DeepCNet(nn.Module):
 modelDeepCNet = DeepCNet().cuda()
 
 batchSize = 10
-num_epochs = 40
+num_epochs = 75
 learning_rate = 1e-4
 optimizer = torch.optim.Adam(modelDeepCNet.parameters(), lr=learning_rate)
 criterion = nn.CrossEntropyLoss()
@@ -138,7 +138,10 @@ for epoch in range(num_epochs):
             epoch + 1, loss.item(), acc / images_train.shape[0], learning_rate
         )
     )
-    learning_rate *= 0.97
+    learning_rate *= 0.8
+    if (epoch + 1) % 15 == 0:
+        learning_rate = 1e-4
+
     optimizer = torch.optim.Adam(modelDeepCNet.parameters(), lr=learning_rate)
 
 
