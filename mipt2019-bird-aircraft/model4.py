@@ -3,6 +3,8 @@ import numpy as np
 from pandas.api.types import is_string_dtype
 import torch
 import torch.nn as nn
+import random
+from PIL import Image
 
 
 # Competition: https://www.kaggle.com/c/mipt2019-bird-aircraft
@@ -20,9 +22,20 @@ train_x = pd.read_csv(f"{PATH}train_x.csv", index_col=0, header=None)
 train_y = pd.read_csv(f"{PATH}train_y.csv", index_col=0)
 test_x = pd.read_csv(f"{PATH}test_x.csv", index_col=0, header=None)
 
-images_train = (
-    train_x.values.reshape(train_x.shape[0], 32, 32, 3).swapaxes(1, 3).swapaxes(2, 3)
-)
+img_t = train_x.values.reshape(train_x.shape[0], 32, 32, 3)
+img_aug = np.empty(img_t.shape, dtype=int)
+
+for idx in range(img_t.shape[0]):
+    pilImg = Image.fromarray(np.uint8(img_t[idx]))
+    pilImg = pilImg.rotate(random.uniform(-15, 15), Image.BILINEAR)
+    if random.random() < 0.5:
+        pilImg = pilImg.transpose(Image.FLIP_LEFT_RIGHT)
+
+    img_aug[idx] = np.asarray(pilImg)
+
+
+img_t = np.concatenate((img_t, img_aug))
+images_train = img_t.swapaxes(1, 3).swapaxes(2, 3)
 
 images_test = (
     test_x.values.reshape(test_x.shape[0], 32, 32, 3).swapaxes(1, 3).swapaxes(2, 3)
@@ -30,6 +43,7 @@ images_test = (
 
 convert_strings_to_categories_codes(train_y)
 train_y = train_y["target"].to_numpy().astype(np.int64)
+train_y = np.concatenate((train_y, train_y))
 
 
 # This architecture is inspired by https://arxiv.org/pdf/1409.6070.pdf
@@ -91,10 +105,9 @@ class DeepCNet(nn.Module):
 
 
 # TRAIN PART
-
 modelDeepCNet = DeepCNet().cuda()
 
-batchSize = 5
+batchSize = 10
 num_epochs = 40
 learning_rate = 1e-4
 optimizer = torch.optim.Adam(modelDeepCNet.parameters(), lr=learning_rate)
