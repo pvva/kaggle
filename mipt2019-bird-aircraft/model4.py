@@ -22,6 +22,18 @@ train_x = pd.read_csv(f"{PATH}train_x.csv", index_col=0, header=None)
 train_y = pd.read_csv(f"{PATH}train_y.csv", index_col=0)
 test_x = pd.read_csv(f"{PATH}test_x.csv", index_col=0, header=None)
 
+convert_strings_to_categories_codes(train_y)
+# without augmentation the score is around 0.915
+# images_train = (
+#     train_x.values.reshape(train_x.shape[0], 32, 32, 3).swapaxes(1, 3).swapaxes(2, 3)
+# )
+#
+# images_test = (
+#     test_x.values.reshape(test_x.shape[0], 32, 32, 3).swapaxes(1, 3).swapaxes(2, 3)
+# )
+# train_y = train_y["target"].to_numpy().astype(np.int64)
+
+# with augmentation
 img_t = train_x.values.reshape(train_x.shape[0], 32, 32, 3)
 img_aug = np.empty(img_t.shape, dtype=int)
 
@@ -33,6 +45,9 @@ for idx in range(img_t.shape[0]):
 
     img_aug[idx] = np.asarray(pilImg)
 
+# adding permutation for augmented training data increases score up to 0.935 (from 0.93)
+aug_indices = np.random.permutation(img_aug.shape[0])
+img_aug = img_aug[aug_indices]
 
 img_t = np.concatenate((img_t, img_aug))
 images_train = img_t.swapaxes(1, 3).swapaxes(2, 3)
@@ -41,9 +56,9 @@ images_test = (
     test_x.values.reshape(test_x.shape[0], 32, 32, 3).swapaxes(1, 3).swapaxes(2, 3)
 )
 
-convert_strings_to_categories_codes(train_y)
 train_y = train_y["target"].to_numpy().astype(np.int64)
-train_y = np.concatenate((train_y, train_y))
+train_y_aug = train_y[aug_indices]
+train_y = np.concatenate((train_y, train_y_aug))
 
 
 # This architecture is inspired by https://arxiv.org/pdf/1409.6070.pdf
@@ -104,6 +119,23 @@ class DeepCNet(nn.Module):
         return out
 
 
+# mixup is described here: https://arxiv.org/pdf/1710.09412.pdf
+# Adding mixup doesn't change final score, however if preliminary augmentation is
+# removed, then the score is around 0.92. Same goes for constant learning rate instead of adaptive.
+def mixup_input(x, y, bs):
+    l = np.random.beta(1, 1)
+    indices = torch.randperm(bs)
+
+    mixed_x = l * x + (1 - l) * x[indices, :]
+    y_a, y_b = y, y[indices]
+
+    return mixed_x, y_a, y_b, l
+
+
+def mixed_criterion(c, l, pred, y_a, y_b):
+    return l * c(pred, y_a) + (1 - l) * c(pred, y_b)
+
+
 # TRAIN PART
 modelDeepCNet = DeepCNet().cuda()
 
@@ -120,17 +152,25 @@ for epoch in range(num_epochs):
     for i in range(0, images_train.shape[0], batchSize):
         input = images_train[i : i + batchSize]
         labels = train_y[i : i + batchSize]
-
-        output = modelDeepCNet(input)
         v = torch.LongTensor(labels).cuda()
 
-        loss = criterion(output, v)
+        input, y_a, y_b, l = mixup_input(input, v, batchSize)
+
+        output = modelDeepCNet(input)
+
+        # loss = criterion(output, v)
+        loss = mixed_criterion(criterion, l, output, y_a, y_b)
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         predicted = torch.argmax(output.data, 1)
-        correct = (predicted.cpu().numpy() == labels).sum().item()
+        # correct = (predicted.cpu().numpy() == labels).sum().item()
+        correct = (
+            l * predicted.eq(y_a.data).cpu().sum().float()
+            + (1 - l) * predicted.eq(y_b.data).cpu().sum().float()
+        )
         acc += correct
 
     print(
